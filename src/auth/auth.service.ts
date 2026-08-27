@@ -68,7 +68,9 @@ export class AuthService {
     });
 
     await this.userRepo.save(user);
-    await this.mailService.sendOtpEmail(user.email, otpCode);
+    setImmediate(() => {
+      this.mailService.sendOtpEmail(user.email, otpCode);
+    });
 
     return {
       message:
@@ -124,8 +126,9 @@ export class AuthService {
     user.otpCode = otpCode;
     user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await this.userRepo.save(user);
-
-    await this.mailService.sendOtpEmail(user.email, otpCode);
+    setImmediate(() => {
+      this.mailService.sendOtpEmail(user.email, otpCode);
+    });
 
     return { message: 'A new verification code has been sent to your email' };
   }
