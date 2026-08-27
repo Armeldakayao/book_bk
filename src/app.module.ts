@@ -26,11 +26,15 @@ import configuration from './config/configuration.js';
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
+        url: config.get<string>('DATABASE_URL'),
         host: config.get('database.host'),
         port: config.get('database.port'),
         username: config.get('database.username'),
         password: config.get('database.password'),
         database: config.get('database.name'),
+        ssl: config.get('DATABASE_URL')
+          ? { rejectUnauthorized: false }
+          : false,
         entities: [User, Genre, Book, ReadingSession, Notification],
         synchronize: true,
       }),
