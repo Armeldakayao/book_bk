@@ -8,16 +8,40 @@ export class MailService {
   private transporter: nodemailer.Transporter;
 
   constructor(private readonly configService: ConfigService) {
+    const host = this.configService.get('smtp.host');
+    const port = this.configService.get('smtp.port');
+    const user = this.configService.get('smtp.user');
+    const pass = this.configService.get('smtp.pass');
+
+    this.logger.log(`[MailService] Initializing transporter`);
+    this.logger.log(`[MailService] SMTP_HOST: ${host}`);
+    this.logger.log(`[MailService] SMTP_PORT: ${port}`);
+    this.logger.log(`[MailService] SMTP_USER: ${user}`);
+    this.logger.log(`[MailService] SMTP_PASS: ${pass ? '***set***' : '***EMPTY***'}`);
+    this.logger.log(`[MailService] SMTP_FROM: ${this.configService.get('smtp.from')}`);
+
+    if (!host || !user || !pass) {
+      this.logger.error(`[MailService] Missing SMTP configuration! Check your environment variables.`);
+    }
+
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get('smtp.host'),
-      port: this.configService.get('smtp.port'),
+      host,
+      port,
       secure: false,
       family: 4,
       auth: {
-        user: this.configService.get('smtp.user'),
-        pass: this.configService.get('smtp.pass'),
+        user,
+        pass,
       },
+      logger: true,
+      debug: true,
     } as any);
+
+    this.logger.log(`[MailService] Transporter created, verifying connection...`);
+
+    this.transporter.verify()
+      .then(() => this.logger.log(`[MailService] SMTP connection verified successfully`))
+      .catch((error) => this.logger.error(`[MailService] SMTP connection verification failed`, error));
   }
 
   private get from(): string {
@@ -25,6 +49,8 @@ export class MailService {
   }
 
   async sendOtpEmail(to: string, code: string): Promise<void> {
+    this.logger.log(`[MailService] Sending OTP email to ${to}`);
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Verify Your Email</h2>
@@ -38,19 +64,31 @@ export class MailService {
     `;
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: this.from,
         to,
         subject: 'Your verification code - BiblioTrack',
         html,
       });
-      this.logger.log(`OTP email sent to ${to}`);
+      this.logger.log(`[MailService] OTP email sent successfully to ${to}`);
+      this.logger.log(`[MailService] Message ID: ${info.messageId}`);
+      this.logger.log(`[MailService] Response: ${info.response}`);
     } catch (error) {
-      this.logger.error(`Failed to send OTP email to ${to}`, error);
+      this.logger.error(`[MailService] Failed to send OTP email to ${to}`);
+      this.logger.error(`[MailService] Error name: ${error.name}`);
+      this.logger.error(`[MailService] Error message: ${error.message}`);
+      this.logger.error(`[MailService] Error code: ${error.code}`);
+      if (error.command) this.logger.error(`[MailService] Error command: ${error.command}`);
+      if (error.syscall) this.logger.error(`[MailService] Error syscall: ${error.syscall}`);
+      if (error.address) this.logger.error(`[MailService] Error address: ${error.address}`);
+      if (error.port) this.logger.error(`[MailService] Error port: ${error.port}`);
+      this.logger.error(`[MailService] Full error:`, error);
     }
   }
 
   async sendWelcomeEmail(to: string, firstName: string): Promise<void> {
+    this.logger.log(`[MailService] Sending welcome email to ${to}`);
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Welcome to BiblioTrack, ${firstName}!</h2>
@@ -67,15 +105,25 @@ export class MailService {
     `;
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: this.from,
         to,
         subject: 'Welcome to BiblioTrack!',
         html,
       });
-      this.logger.log(`Welcome email sent to ${to}`);
+      this.logger.log(`[MailService] Welcome email sent successfully to ${to}`);
+      this.logger.log(`[MailService] Message ID: ${info.messageId}`);
+      this.logger.log(`[MailService] Response: ${info.response}`);
     } catch (error) {
-      this.logger.error(`Failed to send welcome email to ${to}`, error);
+      this.logger.error(`[MailService] Failed to send welcome email to ${to}`);
+      this.logger.error(`[MailService] Error name: ${error.name}`);
+      this.logger.error(`[MailService] Error message: ${error.message}`);
+      this.logger.error(`[MailService] Error code: ${error.code}`);
+      if (error.command) this.logger.error(`[MailService] Error command: ${error.command}`);
+      if (error.syscall) this.logger.error(`[MailService] Error syscall: ${error.syscall}`);
+      if (error.address) this.logger.error(`[MailService] Error address: ${error.address}`);
+      if (error.port) this.logger.error(`[MailService] Error port: ${error.port}`);
+      this.logger.error(`[MailService] Full error:`, error);
     }
   }
 
@@ -84,6 +132,8 @@ export class MailService {
     title: string,
     message: string,
   ): Promise<void> {
+    this.logger.log(`[MailService] Sending activity email to ${to}: ${title}`);
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">${title}</h2>
@@ -93,15 +143,25 @@ export class MailService {
     `;
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: this.from,
         to,
         subject: title,
         html,
       });
-      this.logger.log(`Activity email sent to ${to}: ${title}`);
+      this.logger.log(`[MailService] Activity email sent successfully to ${to}: ${title}`);
+      this.logger.log(`[MailService] Message ID: ${info.messageId}`);
+      this.logger.log(`[MailService] Response: ${info.response}`);
     } catch (error) {
-      this.logger.error(`Failed to send activity email to ${to}`, error);
+      this.logger.error(`[MailService] Failed to send activity email to ${to}: ${title}`);
+      this.logger.error(`[MailService] Error name: ${error.name}`);
+      this.logger.error(`[MailService] Error message: ${error.message}`);
+      this.logger.error(`[MailService] Error code: ${error.code}`);
+      if (error.command) this.logger.error(`[MailService] Error command: ${error.command}`);
+      if (error.syscall) this.logger.error(`[MailService] Error syscall: ${error.syscall}`);
+      if (error.address) this.logger.error(`[MailService] Error address: ${error.address}`);
+      if (error.port) this.logger.error(`[MailService] Error port: ${error.port}`);
+      this.logger.error(`[MailService] Full error:`, error);
     }
   }
 
@@ -109,6 +169,8 @@ export class MailService {
     to: string,
     resetCode: string,
   ): Promise<void> {
+    this.logger.log(`[MailService] Sending reset password email to ${to}`);
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Reset Your Password</h2>
@@ -122,15 +184,25 @@ export class MailService {
     `;
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: this.from,
         to,
         subject: 'Reset Your Password - BiblioTrack',
         html,
       });
-      this.logger.log(`Reset password email sent to ${to}`);
+      this.logger.log(`[MailService] Reset password email sent successfully to ${to}`);
+      this.logger.log(`[MailService] Message ID: ${info.messageId}`);
+      this.logger.log(`[MailService] Response: ${info.response}`);
     } catch (error) {
-      this.logger.error(`Failed to send reset password email to ${to}`, error);
+      this.logger.error(`[MailService] Failed to send reset password email to ${to}`);
+      this.logger.error(`[MailService] Error name: ${error.name}`);
+      this.logger.error(`[MailService] Error message: ${error.message}`);
+      this.logger.error(`[MailService] Error code: ${error.code}`);
+      if (error.command) this.logger.error(`[MailService] Error command: ${error.command}`);
+      if (error.syscall) this.logger.error(`[MailService] Error syscall: ${error.syscall}`);
+      if (error.address) this.logger.error(`[MailService] Error address: ${error.address}`);
+      if (error.port) this.logger.error(`[MailService] Error port: ${error.port}`);
+      this.logger.error(`[MailService] Full error:`, error);
     }
   }
 }
