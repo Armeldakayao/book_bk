@@ -17,7 +17,7 @@ export class MailService {
         user: this.configService.get('smtp.user'),
         pass: this.configService.get('smtp.pass'),
       },
-    });
+    } as any);
   }
 
   private get from(): string {
