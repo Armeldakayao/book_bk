@@ -1,51 +1,47 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter;
+  private readonly apiKey: string;
+  private readonly from: string;
 
   constructor(private readonly configService: ConfigService) {
-    const host = this.configService.get('smtp.host');
-    const port = this.configService.get('smtp.port');
-    const user = this.configService.get('smtp.user');
-    const pass = this.configService.get('smtp.pass');
+    this.apiKey = this.configService.get<string>('mail.apiKey') ?? '';
+    this.from = this.configService.get<string>('mail.from') ?? 'BiblioTrack <no-reply@bibliotrack.app>';
 
-    this.logger.log(`[MailService] Initializing transporter`);
-    this.logger.log(`[MailService] SMTP_HOST: ${host}`);
-    this.logger.log(`[MailService] SMTP_PORT: ${port}`);
-    this.logger.log(`[MailService] SMTP_USER: ${user}`);
-    this.logger.log(`[MailService] SMTP_PASS: ${pass ? '***set***' : '***EMPTY***'}`);
-    this.logger.log(`[MailService] SMTP_FROM: ${this.configService.get('smtp.from')}`);
+    this.logger.log(`[MailService] Initializing Elastic Email client`);
+    this.logger.log(`[MailService] ELASTICEMAIL_API_KEY: ${this.apiKey ? '***set***' : '***EMPTY***'}`);
+    this.logger.log(`[MailService] EMAIL_FROM: ${this.from}`);
 
-    if (!host || !user || !pass) {
-      this.logger.error(`[MailService] Missing SMTP configuration! Check your environment variables.`);
+    if (!this.apiKey) {
+      this.logger.error(`[MailService] Missing ELASTICEMAIL_API_KEY! Check your environment variables.`);
     }
-
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: false,
-      family: 4,
-      auth: {
-        user,
-        pass,
-      },
-      logger: true,
-      debug: true,
-    } as any);
-
-    this.logger.log(`[MailService] Transporter created, verifying connection...`);
-
-    this.transporter.verify()
-      .then(() => this.logger.log(`[MailService] SMTP connection verified successfully`))
-      .catch((error) => this.logger.error(`[MailService] SMTP connection verification failed`, error));
   }
 
-  private get from(): string {
-    return this.configService.get<string>('smtp.from') ?? 'BiblioTrack <no-reply@bibliotrack.app>';
+  private async sendEmail(to: string, subject: string, html: string): Promise<void> {
+    const url = `https://api.elasticemail.com/v4/emails/transactional?apikey=${this.apiKey}`;
+
+    const body = new URLSearchParams();
+    body.append('From', this.from);
+    body.append('To', to);
+    body.append('Subject', subject);
+    body.append('HtmlBody', html);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`Elastic Email API error: ${JSON.stringify(result)}`);
+    }
+
+    this.logger.log(`[MailService] Email sent successfully. Response: ${JSON.stringify(result)}`);
   }
 
   async sendOtpEmail(to: string, code: string): Promise<void> {
@@ -64,25 +60,12 @@ export class MailService {
     `;
 
     try {
-      const info = await this.transporter.sendMail({
-        from: this.from,
-        to,
-        subject: 'Your verification code - BiblioTrack',
-        html,
-      });
+      await this.sendEmail(to, 'Your verification code - BiblioTrack', html);
       this.logger.log(`[MailService] OTP email sent successfully to ${to}`);
-      this.logger.log(`[MailService] Message ID: ${info.messageId}`);
-      this.logger.log(`[MailService] Response: ${info.response}`);
     } catch (error) {
       this.logger.error(`[MailService] Failed to send OTP email to ${to}`);
       this.logger.error(`[MailService] Error name: ${error.name}`);
       this.logger.error(`[MailService] Error message: ${error.message}`);
-      this.logger.error(`[MailService] Error code: ${error.code}`);
-      if (error.command) this.logger.error(`[MailService] Error command: ${error.command}`);
-      if (error.syscall) this.logger.error(`[MailService] Error syscall: ${error.syscall}`);
-      if (error.address) this.logger.error(`[MailService] Error address: ${error.address}`);
-      if (error.port) this.logger.error(`[MailService] Error port: ${error.port}`);
-      this.logger.error(`[MailService] Full error:`, error);
     }
   }
 
@@ -105,25 +88,12 @@ export class MailService {
     `;
 
     try {
-      const info = await this.transporter.sendMail({
-        from: this.from,
-        to,
-        subject: 'Welcome to BiblioTrack!',
-        html,
-      });
+      await this.sendEmail(to, 'Welcome to BiblioTrack!', html);
       this.logger.log(`[MailService] Welcome email sent successfully to ${to}`);
-      this.logger.log(`[MailService] Message ID: ${info.messageId}`);
-      this.logger.log(`[MailService] Response: ${info.response}`);
     } catch (error) {
       this.logger.error(`[MailService] Failed to send welcome email to ${to}`);
       this.logger.error(`[MailService] Error name: ${error.name}`);
       this.logger.error(`[MailService] Error message: ${error.message}`);
-      this.logger.error(`[MailService] Error code: ${error.code}`);
-      if (error.command) this.logger.error(`[MailService] Error command: ${error.command}`);
-      if (error.syscall) this.logger.error(`[MailService] Error syscall: ${error.syscall}`);
-      if (error.address) this.logger.error(`[MailService] Error address: ${error.address}`);
-      if (error.port) this.logger.error(`[MailService] Error port: ${error.port}`);
-      this.logger.error(`[MailService] Full error:`, error);
     }
   }
 
@@ -143,25 +113,12 @@ export class MailService {
     `;
 
     try {
-      const info = await this.transporter.sendMail({
-        from: this.from,
-        to,
-        subject: title,
-        html,
-      });
+      await this.sendEmail(to, title, html);
       this.logger.log(`[MailService] Activity email sent successfully to ${to}: ${title}`);
-      this.logger.log(`[MailService] Message ID: ${info.messageId}`);
-      this.logger.log(`[MailService] Response: ${info.response}`);
     } catch (error) {
       this.logger.error(`[MailService] Failed to send activity email to ${to}: ${title}`);
       this.logger.error(`[MailService] Error name: ${error.name}`);
       this.logger.error(`[MailService] Error message: ${error.message}`);
-      this.logger.error(`[MailService] Error code: ${error.code}`);
-      if (error.command) this.logger.error(`[MailService] Error command: ${error.command}`);
-      if (error.syscall) this.logger.error(`[MailService] Error syscall: ${error.syscall}`);
-      if (error.address) this.logger.error(`[MailService] Error address: ${error.address}`);
-      if (error.port) this.logger.error(`[MailService] Error port: ${error.port}`);
-      this.logger.error(`[MailService] Full error:`, error);
     }
   }
 
@@ -184,25 +141,12 @@ export class MailService {
     `;
 
     try {
-      const info = await this.transporter.sendMail({
-        from: this.from,
-        to,
-        subject: 'Reset Your Password - BiblioTrack',
-        html,
-      });
+      await this.sendEmail(to, 'Reset Your Password - BiblioTrack', html);
       this.logger.log(`[MailService] Reset password email sent successfully to ${to}`);
-      this.logger.log(`[MailService] Message ID: ${info.messageId}`);
-      this.logger.log(`[MailService] Response: ${info.response}`);
     } catch (error) {
       this.logger.error(`[MailService] Failed to send reset password email to ${to}`);
       this.logger.error(`[MailService] Error name: ${error.name}`);
       this.logger.error(`[MailService] Error message: ${error.message}`);
-      this.logger.error(`[MailService] Error code: ${error.code}`);
-      if (error.command) this.logger.error(`[MailService] Error command: ${error.command}`);
-      if (error.syscall) this.logger.error(`[MailService] Error syscall: ${error.syscall}`);
-      if (error.address) this.logger.error(`[MailService] Error address: ${error.address}`);
-      if (error.port) this.logger.error(`[MailService] Error port: ${error.port}`);
-      this.logger.error(`[MailService] Full error:`, error);
     }
   }
 }
