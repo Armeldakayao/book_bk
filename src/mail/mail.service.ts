@@ -21,18 +21,24 @@ export class MailService {
   }
 
   private async sendEmail(to: string, subject: string, html: string): Promise<void> {
-    const url = `https://api.elasticemail.com/v4/emails/transactional?apikey=${this.apiKey}`;
+    const url = 'https://api.elasticemail.com/v4/emails/transactional';
 
-    const body = new URLSearchParams();
-    body.append('From', this.from);
-    body.append('To', to);
-    body.append('Subject', subject);
-    body.append('HtmlBody', html);
+    const body = {
+      Recipients: { To: [to] },
+      Content: {
+        Body: [{ ContentType: 'HTML', Content: html }],
+        From: this.from,
+        Subject: subject,
+      },
+    };
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-ElasticEmail-ApiKey': this.apiKey,
+      },
+      body: JSON.stringify(body),
     });
 
     const result = await response.json();
