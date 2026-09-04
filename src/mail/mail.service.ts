@@ -1,53 +1,45 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly apiKey: string;
+  private readonly transporter: nodemailer.Transporter;
   private readonly from: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.apiKey = this.configService.get<string>('mail.apiKey') ?? '';
+    const host = this.configService.get<string>('mail.host') ?? 'smtp.gmail.com';
+    const port = this.configService.get<number>('mail.port') ?? 587;
+    const user = this.configService.get<string>('mail.user') ?? '';
+    const pass = this.configService.get<string>('mail.pass') ?? '';
     this.from = this.configService.get<string>('mail.from') ?? 'BiblioTrack <no-reply@bibliotrack.app>';
 
-    this.logger.log(`[MailService] Initializing Elastic Email client`);
-    this.logger.log(`[MailService] ELASTICEMAIL_API_KEY: ${this.apiKey ? '***set***' : '***EMPTY***'}`);
+    this.logger.log(`[MailService] Initializing SMTP transport: ${host}:${port}`);
+    this.logger.log(`[MailService] SMTP_USER: ${user ? '***set***' : '***EMPTY***'}`);
+    this.logger.log(`[MailService] SMTP_PASS: ${pass ? '***set***' : '***EMPTY***'}`);
     this.logger.log(`[MailService] EMAIL_FROM: ${this.from}`);
 
-    if (!this.apiKey) {
-      this.logger.error(`[MailService] Missing ELASTICEMAIL_API_KEY! Check your environment variables.`);
-    }
+    this.transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: {
+        user,
+        pass,
+      },
+    });
   }
 
   private async sendEmail(to: string, subject: string, html: string): Promise<void> {
-    const url = 'https://api.elasticemail.com/v4/emails/transactional';
-
-    const body = {
-      Recipients: { To: [to] },
-      Content: {
-        Body: [{ ContentType: 'HTML', Content: html }],
-        From: this.from,
-        Subject: subject,
-      },
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-ElasticEmail-ApiKey': this.apiKey,
-      },
-      body: JSON.stringify(body),
+    await this.transporter.sendMail({
+      from: this.from,
+      to,
+      subject,
+      html,
     });
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(`Elastic Email API error: ${JSON.stringify(result)}`);
-    }
-
-    this.logger.log(`[MailService] Email sent successfully. Response: ${JSON.stringify(result)}`);
+    this.logger.log(`[MailService] Email sent successfully to ${to}`);
   }
 
   async sendOtpEmail(to: string, code: string): Promise<void> {
